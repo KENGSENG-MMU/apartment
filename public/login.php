@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?= csrf_field() ?>
         <div class="form-group">
             <label>Email Address</label>
-            <input type="email" name="email" placeholder="e.g. guard@apt.com" required autocomplete="email">
+            <input type="email" name="email" placeholder="e.g. visitor@apt.com" required autocomplete="email">
         </div>
         <div class="form-group">
             <label>Password</label>
