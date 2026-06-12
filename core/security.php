@@ -53,4 +53,88 @@ function require_login($allowed_roles = []) {
 function csrf_field() {
     return '<input type="hidden" name="csrf_token" value="' . e($_SESSION['csrf_token']) . '">';
 }
-?>
+
+
+if (!function_exists('log_audit')) {
+    function log_audit($action, $details = '') {
+        try {
+            $pdo = db();
+
+            $user_id = $_SESSION['uid'] ?? null;
+            $ip_address = $_SERVER['REMOTE_ADDR'] ?? null;
+
+            $stmt = $pdo->prepare("
+                INSERT INTO audit_logs
+                (user_id, action, details, ip_address)
+                VALUES (?, ?, ?, ?)
+            ");
+
+            $stmt->execute([
+                $user_id,
+                $action,
+                $details,
+                $ip_address
+            ]);
+        } catch (Throwable $e) {
+            // Do not stop the system if audit log fails
+        }
+    }
+}
+
+if (!function_exists('create_notification')) {
+    function create_notification(PDO $pdo, int $userId, string $title, string $message, string $type = 'system'): bool {
+        if ($userId <= 0) {
+            return false;
+        }
+
+        try {
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*)
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'notifications'
+            ");
+            $stmt->execute();
+
+            if ((int)$stmt->fetchColumn() <= 0) {
+                return false;
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT COLUMN_TYPE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'notifications'
+                AND COLUMN_NAME = 'type'
+                LIMIT 1
+            ");
+            $stmt->execute();
+            $columnType = (string)$stmt->fetchColumn();
+
+            if (str_starts_with(strtolower($columnType), 'enum')) {
+                $allowedTypes = ['info', 'success', 'warning', 'danger'];
+
+                if (!in_array($type, $allowedTypes, true)) {
+                    $type = 'info';
+                }
+            }
+
+            $stmt = $pdo->prepare("
+                INSERT INTO notifications
+                (user_id, title, message, type, is_read, created_at)
+                VALUES
+                (?, ?, ?, ?, 0, NOW())
+            ");
+
+            return $stmt->execute([
+                $userId,
+                $title,
+                $message,
+                $type
+            ]);
+
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+}
